@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniGPT Simple</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;700&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#03060f;--panel:#070d1a;--panel2:#0b1425;
+  --border:#152035;--border2:#1e3050;
+  --accent:#00e5ff;--accent2:#00ff88;--accent3:#ffaa00;
+  --text:#b8cce0;--text2:#6a8aaa;
+  --danger:#ff3355;--warn:#ffaa00;
+  --font-title:'Orbitron',monospace;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-ui:'IBM Plex Sans',sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:13px;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.07) 2px,rgba(0,0,0,.07) 4px);pointer-events:none;z-index:999}
+
+#header{display:flex;align-items:center;gap:10px;padding:8px 18px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;flex-wrap:wrap}
+#logo{font-family:var(--font-title);font-size:15px;font-weight:900;color:var(--accent);letter-spacing:2px;text-shadow:0 0 16px var(--accent);white-space:nowrap}
+#logo span{color:var(--accent2)}
+.hstat{display:flex;flex-direction:column;align-items:center;padding:3px 10px;border-left:1px solid var(--border2)}
+.hstat-val{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--accent);text-shadow:0 0 8px var(--accent)}
+.hstat-lbl{font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.v5-badge{font-family:var(--font-mono);font-size:8px;padding:2px 6px;border-radius:2px;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(--accent2);letter-spacing:1px}
+#backend-badge{font-family:var(--font-mono);font-size:9px;padding:3px 7px;border-radius:3px;border:1px solid var(--border2);color:var(--text2);margin-left:auto}
+#backend-badge.webgpu{border-color:var(--accent2);color:var(--accent2)}
+#backend-badge.webgl{border-color:var(--accent);color:var(--accent)}
+
+#console-log-wrap{display:flex;align-items:center;gap:6px;padding:0 10px;border-left:1px solid var(--border2)}
+#console-log-wrap span{font-family:var(--font-mono);font-size:9px;color:var(--text2);letter-spacing:1px}
+#console-toggle{appearance:none;width:30px;height:16px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;position:relative;transition:all .2s;flex-shrink:0}
+#console-toggle::after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:var(--text2);transition:all .2s}
+#console-toggle:checked{background:rgba(0,255,136,.2);border-color:var(--accent2)}
+#console-toggle:checked::after{left:16px;background:var(--accent2)}
+
+#main{display:grid;grid-template-columns:280px 1fr 300px;gap:0;flex:1;overflow:hidden}
+.col{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+.col:last-child{border-right:none}
+.panel{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 13px;flex-shrink:0}
+.panel.flex1{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.ptitle{font-family:var(--font-mono);font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.ptitle::before{content:'▸';color:var(--accent);font-size:8px}
+
+.cfg-row{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.cfg-row label{font-family:var(--font-mono);font-size:9px;color:var(--text2);width:72px;flex-shrink:0}
+.cfg-row input[type=range]{flex:1;accent-color:var(--accent);height:3px}
+.cfg-row .cfg-val{font-family:var(--font-mono);font-size:10px;color:var(--accent);width:44px;text-align:right;flex-shrink:0}
+.ctrl-row{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.ctrl-row label{font-family:var(--font-mono);font-size:9px;color:var(--text2);width:72px}
+.ctrl-row input[type=range]{flex:1;accent-color:var(--accent2)}
+.ctrl-row .cval{font-family:var(--font-mono);font-size:10px;color:var(--accent2);width:54px;text-align:right}
+
+.btn{padding:6px 14px;border-radius:3px;border:1px solid;font-family:var(--font-mono);font-size:10px;cursor:pointer;font-weight:700;letter-spacing:1px;transition:all .15s;text-transform:uppercase}
+.btn-start{background:rgba(0,255,136,.1);border-color:var(--accent2);color:var(--accent2)}
+.btn-start:hover{background:rgba(0,255,136,.2)}
+.btn-start.running{background:rgba(255,51,85,.08);border-color:var(--danger);color:var(--danger)}
+.btn-sm{background:var(--panel2);border-color:var(--border2);color:var(--text2);font-size:9px;padding:4px 10px}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent)}
+.btn-row{display:flex;gap:5px;flex-wrap:wrap}
+
+.preset-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:8px}
+.preset-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:3px;padding:4px 2px;color:var(--text2);font-family:var(--font-mono);font-size:9px;cursor:pointer;text-align:center;transition:all .15s}
+.preset-btn:hover,.preset-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,.06)}
+
+textarea{width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--font-mono);font-size:10px;padding:7px;resize:none;line-height:1.55;outline:none;transition:border-color .2s}
+textarea:focus{border-color:var(--accent2)}
+#ta-qa{flex:1;border-color:rgba(0,255,136,.2)}
+.ta-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column}
+
+.tip-box{background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.15);border-radius:4px;padding:8px 10px;margin-bottom:8px;font-family:var(--font-mono);font-size:9px;color:var(--text2);line-height:1.8}
+.tip-box b{color:var(--accent2)}
+
+.gnorm-wrap{margin-bottom:6px}
+.gnorm-label{font-family:var(--font-mono);font-size:9px;color:var(--text2);display:flex;justify-content:space-between;margin-bottom:3px}
+.gnorm-track{height:4px;background:var(--panel2);border:1px solid var(--border2);border-radius:2px;overflow:hidden}
+.gnorm-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent3));transition:width .3s;border-radius:2px}
+.gnorm-fill.clipped{background:linear-gradient(90deg,var(--accent3),var(--danger))}
+
+.mem-row{display:flex;gap:5px;margin-bottom:6px}
+.mem-stat{flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:3px;padding:4px 6px;text-align:center}
+.mem-stat-val{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--accent)}
+.mem-stat-lbl{font-family:var(--font-mono);font-size:8px;color:var(--text2);text-transform:uppercase}
+.mem-stat-val.warn{color:var(--warn)}.mem-stat-val.danger{color:var(--danger)}
+
+.lr-mode-row{display:flex;gap:4px;margin-bottom:6px;align-items:center}
+.lr-pill{font-family:var(--font-mono);font-size:8px;padding:3px 8px;border-radius:10px;border:1px solid var(--border2);color:var(--text2);background:var(--panel2);cursor:pointer;transition:all .15s}
+.lr-pill.active{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,.08)}
+
+#train-progress{height:2px;background:var(--border);border-radius:2px;overflow:hidden;margin:6px 0}
+#train-progress-bar{height:100%;background:linear-gradient(90deg,var(--accent3),var(--accent2));width:0%;transition:width .4s}
+
+.loss-legend{display:flex;gap:12px;margin-bottom:6px}
+.ll{display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:9px}
+.ll-dot{width:8px;height:8px;border-radius:50%}
+#chart-wrap{flex:1;position:relative;min-height:0}
+#lossChart{width:100%!important;height:100%!important}
+
+#log-wrap{flex:1;overflow-y:auto;font-family:var(--font-mono);font-size:9px;line-height:1.8;padding:2px}
+.log-line{padding:0;border-bottom:1px solid rgba(255,255,255,.02)}
+.log-line.info{color:var(--text2)}.log-line.ok{color:var(--accent2)}.log-line.warn{color:var(--warn)}.log-line.err{color:var(--danger)}
+.log-line .ts{color:var(--border2);margin-right:5px}
+
+#arch-info{font-family:var(--font-mono);font-size:9px;color:var(--text2);line-height:2;columns:2}
+
+#chat-messages{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.msg{max-width:90%;padding:8px 11px;border-radius:6px;font-family:var(--font-mono);font-size:10px;line-height:1.6;word-break:break-word;white-space:pre-wrap}
+.msg.user{align-self:flex-end;background:#0f2040;border:1px solid var(--border2);color:var(--text);border-bottom-right-radius:2px}
+.msg.asst{align-self:flex-start;background:#051a12;border:1px solid rgba(0,255,136,.15);color:var(--accent2);border-bottom-left-radius:2px}
+.msg.asst.streaming{border-color:rgba(0,255,136,.5)}
+.msg-lbl{font-size:8px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;opacity:.5}
+.msg.user .msg-lbl{text-align:right;color:var(--accent)}
+.msg.asst .msg-lbl{color:var(--accent2)}
+#chat-empty{font-family:var(--font-mono);font-size:10px;color:var(--text2);text-align:center;margin:auto;opacity:.4;line-height:2.2}
+#chat-input-row{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--border);flex-shrink:0}
+#chat-input{flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--font-mono);font-size:10px;padding:6px 9px;outline:none;resize:none;height:32px}
+#chat-input:focus{border-color:var(--accent);height:64px;transition:height .15s}
+#btn-send{background:rgba(0,229,255,.08);border:1px solid var(--accent);color:var(--accent);font-family:var(--font-mono);font-size:10px;padding:6px 12px;border-radius:3px;cursor:pointer;font-weight:700;flex-shrink:0}
+#btn-send:hover{background:rgba(0,229,255,.18)}
+#btn-send:disabled{opacity:.35;cursor:not-allowed}
+
+.pair-stat{display:flex;gap:8px;padding:5px 8px;background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.12);border-radius:3px;margin-bottom:6px;align-items:center}
+.pair-stat-item{font-family:var(--font-mono);font-size:9px;color:var(--text2)}
+.pair-stat-item b{color:var(--accent2)}
+
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--panel)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.cursor::after{content:'▋';animation:blink .9s infinite;color:var(--accent2)}
+
+#init-overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:16px}
+.il{font-family:var(--font-title);font-size:28px;font-weight:900;color:var(--accent);text-shadow:0 0 30px var(--accent);letter-spacing:4px}
+.is{font-family:var(--font-mono);color:var(--text2);font-size:11px}
+#init-bar{width:260px;height:2px;background:var(--border);border-radius:2px;overflow:hidden}
+#init-fill{height:100%;width:0%;background:var(--accent);transition:width .3s}
+</style>
+</head>
+<body>
+
+<div id="init-overlay">
+  <div class="il">BEAN<span style="color:var(--accent2)">AI</span> <span style="font-size:12px;letter-spacing:1px;opacity:.6">simple</span></div>
+  <div class="is" id="init-msg">Loading TensorFlow.js…</div>
+  <div id="init-bar"><div id="init-fill"></div></div>
+</div>
+
+<div id="header" style="display:none">
+  <div id="logo">BEAN<span>AI</span></div>
+  <div class="v5-badge">SIMPLE</div>
+  <div class="hstat"><div class="hstat-val" id="stat-params">0</div><div class="hstat-lbl">params</div></div>
+  <div class="hstat"><div class="hstat-val" id="stat-step">0</div><div class="hstat-lbl">steps</div></div>
+  <div class="hstat"><div class="hstat-val" id="stat-loss">—</div><div class="hstat-lbl">loss</div></div>
+  <div class="hstat"><div class="hstat-val" id="stat-gnorm">—</div><div class="hstat-lbl">gnorm</div></div>
+  <div class="hstat"><div class="hstat-val" id="stat-tps">0</div><div class="hstat-lbl">tok/s</div></div>
+  <div class="hstat"><div class="hstat-val" id="stat-tensors">0</div><div class="hstat-lbl">tensors</div></div>
+  <div id="console-log-wrap">
+    <input type="checkbox" id="console-toggle">
+    <span>F12 LOG</span>
+  </div>
+  <div id="backend-badge" style="margin-left:auto">BACKEND</div>
+</div>
+
+<div id="main" style="display:none">
+
+<div class="col">
+  <div class="panel">
+    <div class="ptitle">Model Architecture</div>
+    <div class="preset-grid">
+      <button class="preset-btn" data-p="micro">MICRO<br><span style="font-size:8px;opacity:.6">~1M</span></button>
+      <button class="preset-btn active" data-p="small">SMALL<br><span style="font-size:8px;opacity:.6">~5M</span></button>
+      <button class="preset-btn" data-p="medium">MED<br><span style="font-size:8px;opacity:.6">~18M</span></button>
+      <button class="preset-btn" data-p="30m">30M<br><span style="font-size:8px;opacity:.6">~30M</span></button>
+      <button class="preset-btn" data-p="xl">XL<br><span style="font-size:8px;opacity:.6">~50M</span></button>
+    </div>
+    <div class="cfg-row"><label>Layers</label><input type="range" id="cfg-layers" min="2" max="16" value="6" step="1"><div class="cfg-val" id="val-layers">6</div></div>
+    <div class="cfg-row"><label>d_model</label><input type="range" id="cfg-dmodel" min="64" max="768" value="256" step="64"><div class="cfg-val" id="val-dmodel">256</div></div>
+    <div class="cfg-row"><label>Heads</label><input type="range" id="cfg-heads" min="2" max="16" value="8" step="2"><div class="cfg-val" id="val-heads">8</div></div>
+    <div class="cfg-row"><label>FF Dim</label><input type="range" id="cfg-ffdim" min="128" max="3072" value="1024" step="128"><div class="cfg-val" id="val-ffdim">1024</div></div>
+    <div class="cfg-row"><label>Seq Len</label><input type="range" id="cfg-seqlen" min="64" max="512" value="128" step="64"><div class="cfg-val" id="val-seqlen">128</div></div>
+    <div class="cfg-row"><label>Dropout</label><input type="range" id="cfg-dropout" min="0" max="0.3" value="0.1" step="0.05"><div class="cfg-val" id="val-dropout">0.10</div></div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn btn-sm" id="btn-build">⚡ Build Model</button>
+      <button class="btn btn-sm" id="btn-reset">↺ Reset</button>
+      <button class="btn btn-sm" id="btn-gc">🧹 GC</button>
+    </div>
+  </div>
+
+  <div class="panel flex1" style="padding-bottom:10px">
+    <div class="ptitle">💬 Training Data (Q&amp;A Pairs)</div>
+    <div class="tip-box">
+      <b>Format:</b> User: question\nAssistant: answer\n\n(blank line between pairs)<br>
+      <b>Tip:</b> Put all facts <i>inside</i> the answers — no separate knowledge needed.<br>
+      <b>Generate more:</b> Ask Claude/ChatGPT for 200 pairs on any topic!
+    </div>
+    <div class="pair-stat">
+      <div class="pair-stat-item">pairs: <b id="q-pairs">0</b></div>
+      <div class="pair-stat-item">~tokens: <b id="q-tokens">0</b></div>
+      <div class="pair-stat-item">chars: <b id="q-chars">0</b></div>
+    </div>
+    <div class="ta-wrap">
+      <textarea id="ta-qa" placeholder="User: what is the sun?
+Assistant: the sun is a star at the center of our solar system, about 4.6 billion years old and made mostly of hydrogen and helium.
+
+User: hello
+Assistant: hi there! ask me anything you would like to know."></textarea>
+    </div>
+    <div class="btn-row" style="margin-top:6px">
+      <button class="btn btn-sm" id="btn-sample">Load Sample</button>
+      <button class="btn btn-sm" id="btn-clear-data">Clear</button>
+    </div>
+  </div>
+</div>
+
+<div class="col" style="border-right:1px solid var(--border)">
+  <div class="panel">
+    <div class="ptitle">Training</div>
+    <div class="lr-mode-row">
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--text2);margin-right:4px">LR:</div>
+      <button class="lr-pill active" id="lr-warmup">warmup flat</button>
+      <button class="lr-pill" id="lr-cosine">cosine decay</button>
+    </div>
+    <div class="ctrl-row"><label>Learn Rate</label><input type="range" id="ctrl-lr" min="-5" max="-2" value="-4" step="0.1"><div class="cval" id="val-lr">1e-4</div></div>
+    <div class="ctrl-row"><label>Batch Size</label><input type="range" id="ctrl-bs" min="1" max="8" value="4" step="1"><div class="cval" id="val-bs">4</div></div>
+    <div class="ctrl-row"><label>Warmup</label><input type="range" id="ctrl-warmup" min="0" max="500" value="100" step="10"><div class="cval" id="val-warmup">100</div></div>
+    <div class="ctrl-row" id="row-maxsteps" style="opacity:0.3"><label>Max Steps</label><input type="range" id="ctrl-maxsteps" min="500" max="20000" value="5000" step="500"><div class="cval" id="val-maxsteps">5000</div></div>
+    <div style="font-family:var(--font-mono);font-size:9px;color:var(--text2);margin-bottom:4px">Accum:
+      <select id="ctrl-accum" style="background:var(--panel2);border:1px solid var(--border2);color:var(--accent2);font-family:var(--font-mono);font-size:9px;border-radius:3px;padding:1px 4px;margin-left:4px">
+        <option value="1">×1</option>
+        <option value="2">×2</option>
+        <option value="4" selected>×4</option>
+        <option value="8">×8</option>
+      </select>
+    </div>
+    <div class="gnorm-wrap">
+      <div class="gnorm-label">
+        <span>Grad Norm</span>
+        <span id="gnorm-val" style="color:var(--accent2)">—</span>
+        <span style="color:var(--text2)">clip@1.0</span>
+      </div>
+      <div class="gnorm-track"><div class="gnorm-fill" id="gnorm-fill"></div></div>
+    </div>
+    <div class="mem-row">
+      <div class="mem-stat"><div class="mem-stat-val" id="mem-tensors">0</div><div class="mem-stat-lbl">tensors</div></div>
+      <div class="mem-stat"><div class="mem-stat-val" id="mem-bytes">0</div><div class="mem-stat-lbl">MB used</div></div>
+      <div class="mem-stat"><div class="mem-stat-val" id="mem-lr">—</div><div class="mem-stat-lbl">cur lr</div></div>
+    </div>
+    <div id="train-progress"><div id="train-progress-bar"></div></div>
+    <div class="btn-row">
+      <button class="btn btn-start" id="btn-train">▶ TRAIN</button>
+      <button class="btn btn-sm" id="btn-step1">×1</button>
+      <button class="btn btn-sm" id="btn-step10">×10</button>
+      <button class="btn btn-sm" id="btn-step100">×100</button>
+      <button class="btn btn-sm" id="btn-save">⬇ Save</button>
+      <label class="btn btn-sm" style="cursor:pointer">⬆ Load<input type="file" id="btn-load" accept=".bin" style="display:none"></label>
+    </div>
+  </div>
+
+  <div class="panel flex1">
+    <div class="ptitle">
+      Loss Curve
+      <div class="loss-legend">
+        <div class="ll"><div class="ll-dot" style="background:var(--accent2)"></div><span style="color:var(--accent2)">loss</span></div>
+        <div class="ll"><div class="ll-dot" style="background:var(--accent3)"></div><span style="color:var(--accent3)">lr×100</span></div>
+      </div>
+    </div>
+    <div id="chart-wrap"><canvas id="lossChart"></canvas></div>
+  </div>
+
+  <div class="panel flex1" style="max-height:130px">
+    <div class="ptitle">Log</div>
+    <div id="log-wrap"></div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle">Architecture</div>
+    <div id="arch-info">Build a model to see details</div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="panel" style="padding:8px 12px">
+    <div class="ptitle">Generation</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <label style="font-family:var(--font-mono);font-size:9px;color:var(--text2)">Temp</label>
+      <input type="range" id="gen-temp" min="0.01" max="2" value="0.1" step="0.05" style="width:60px;accent-color:var(--accent)">
+      <span id="val-temp" style="font-family:var(--font-mono);font-size:10px;color:var(--accent);width:32px">0.10</span>
+      <label style="font-family:var(--font-mono);font-size:9px;color:var(--text2)">Max</label>
+      <input type="range" id="gen-len" min="20" max="300" value="80" step="10" style="width:60px;accent-color:var(--accent)">
+      <span id="val-glen" style="font-family:var(--font-mono);font-size:10px;color:var(--accent);width:32px">80</span>
+      <label style="font-family:var(--font-mono);font-size:9px;color:var(--text2)">RepPen</label>
+      <input type="range" id="gen-repen" min="1.0" max="2.0" value="1.0" step="0.05" style="width:60px;accent-color:var(--accent3)">
+      <span id="val-repen" style="font-family:var(--font-mono);font-size:10px;color:var(--accent3);width:32px">1.00</span>
+    </div>
+  </div>
+
+  <div class="panel flex1" style="padding:0;display:flex;flex-direction:column">
+    <div id="chat-messages">
+      <div id="chat-empty">Add Q&amp;A pairs,<br>build &amp; train,<br>then chat here.<br><br><span style="font-size:8px;opacity:.5">tip: aim for loss &lt; 1.5 before chatting</span></div>
+    </div>
+    <div style="display:flex;gap:5px;padding:6px 10px;border-top:1px solid var(--border);flex-shrink:0">
+      <button class="btn btn-sm" id="btn-clr-chat">Clear</button>
+      <button class="btn btn-sm" id="btn-raw">Raw gen</button>
+    </div>
+    <div id="chat-input-row">
+      <textarea id="chat-input" placeholder="Ask something…"></textarea>
+      <button id="btn-send" disabled>Send</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const log = (msg, type='info') => {
+  const w = $('log-wrap');
+  const d = document.createElement('div');
+  const ts = new Date().toLocaleTimeString('en', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  d.className = `log-line ${type}`;
+  d.innerHTML = `<span class="ts">${ts}</span>${msg}`;
+  w.appendChild(d);
+  w.scrollTop = w.scrollHeight;
+  if (w.children.length > 400) w.removeChild(w.firstChild);
+};
+
+const fmtN = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : String(n);
+const fmtBytes = b => b >= 1e6 ? (b/1e6).toFixed(1)+'MB' : b >= 1e3 ? (b/1e3).toFixed(0)+'KB' : b+'B';
+
+const clog = {
+  enabled: () => $('console-toggle').checked,
+  training(step, loss, gnorm, lr, inputToks, tokenizer) {
+    if (!this.enabled()) return;
+    console.group(`%c[MiniGPT] Training step ${step}`, 'color:#00ff88;font-weight:bold');
+    console.log('%closs', 'color:#00e5ff', loss.toFixed(4));
+    console.log('%cgnorm', 'color:#00e5ff', gnorm.toFixed(4));
+    console.log('%clr', 'color:#00e5ff', lr.toExponential(2));
+    if (tokenizer && inputToks) {
+      console.log('%cinput IDs', 'color:#ffaa00', inputToks);
+      console.log('%cinput decoded', 'color:#ffaa00', tokenizer.decode(inputToks));
+    }
+    console.groupEnd();
+  },
+  inference(promptIds, genIds, tokenizer) {
+    if (!this.enabled()) return;
+    console.group('%c[MiniGPT] Inference', 'color:#00e5ff;font-weight:bold');
+    console.log('%cprompt IDs', 'color:#ffaa00', promptIds);
+    console.log('%cprompt decoded', 'color:#ffaa00', tokenizer.decode(promptIds));
+    console.log('%cgenerated IDs', 'color:#00ff88', genIds);
+    console.log('%cgenerated text', 'color:#00ff88', tokenizer.decode(genIds));
+    console.log('%cfull sequence', 'color:#b8cce0', tokenizer.decode([...promptIds, ...genIds]));
+    console.groupEnd();
+  }
+};
+
+const SAMPLE_QA = `User: what is the sun?
+Assistant: the sun is a star at the center of our solar system. it is about 4.6 billion years old and mostly made of hydrogen and helium. its surface temperature is around 5500 degrees celsius.
+
+User: how hot is the sun?
+Assistant: the surface of the sun is about 5500 degrees celsius. the core is much hotter, reaching around 15 million degrees celsius.
+
+User: how old is the sun?
+Assistant: the sun is approximately 4.6 billion years old. it is expected to remain stable for another 5 billion years.
+
+User: what is the moon?
+Assistant: the moon is earth's only natural satellite. it orbits earth every 27 days and has no atmosphere. its surface is covered in craters from meteor impacts.
+
+User: why do we have tides?
+Assistant: tides are caused by the gravitational pull of the moon on earth's oceans. the side of earth closest to the moon experiences the strongest pull, creating a bulge of water.
+
+User: how far is the moon from earth?
+Assistant: the moon is about 384000 kilometres from earth on average. light takes about 1.3 seconds to travel from the moon to earth.
+
+User: what are dogs?
+Assistant: dogs are domesticated mammals that evolved from wolves thousands of years ago. they are popular pets and communicate through barking, tail wagging, and body language. there are hundreds of breeds ranging from tiny chihuahuas to large great danes.
+
+User: how long do dogs live?
+Assistant: most dogs live between 10 and 15 years, depending on their breed and size. smaller breeds tend to live longer than larger breeds.
+
+User: what is water made of?
+Assistant: water is made of hydrogen and oxygen atoms. its chemical formula is h2o, meaning two hydrogen atoms bonded to one oxygen atom.
+
+User: why is water important?
+Assistant: water is essential for all known life on earth. it makes up about 60 percent of the human body and is needed for digestion, temperature regulation, and carrying nutrients through the body.
+
+User: what is the capital of france?
+Assistant: the capital of france is paris. it is located in northern france along the river seine and is famous for landmarks like the eiffel tower and the louvre museum.
+
+User: when was the eiffel tower built?
+Assistant: the eiffel tower was built in 1889 for the world's fair in paris. it was designed by gustave eiffel and stands about 330 metres tall.
+
+User: how do plants make food?
+Assistant: plants make food through a process called photosynthesis. they absorb sunlight using a green pigment called chlorophyll, take in carbon dioxide from the air and water from the soil, and produce glucose for energy and oxygen as a byproduct.
+
+User: why are plants green?
+Assistant: plants are green because of chlorophyll, the pigment they use to absorb sunlight for photosynthesis. chlorophyll absorbs red and blue light but reflects green light, which is why we see plants as green.
+
+User: what does the brain do?
+Assistant: the brain controls all body functions, thought, memory, and emotion. it contains about 86 billion neurons and is divided into regions that handle different tasks like movement, language, and vision.
+
+User: what is gravity?
+Assistant: gravity is a fundamental force that attracts objects with mass toward each other. on earth it pulls everything downward. isaac newton first described it mathematically in 1687, and einstein later refined the theory.
+
+User: hello
+Assistant: hi there! i am happy to chat. what would you like to know?
+
+User: how are you?
+Assistant: i am doing well, thanks for asking! what can i help you with today?
+
+User: tell me something interesting
+Assistant: did you know the moon has no atmosphere, so its surface temperature swings from 127 degrees celsius during the day to minus 173 degrees at night?
+
+User: what is photosynthesis?
+Assistant: photosynthesis is the process plants use to convert sunlight into food. they take in carbon dioxide and water, and using energy from sunlight, produce glucose and release oxygen into the air.
+
+User: thank you
+Assistant: you are welcome! feel free to ask me anything else.
+
+User: who invented gravity?
+Assistant: gravity was not invented but discovered. isaac newton described the laws of gravity in 1687 after observing that objects fall toward earth. einstein later expanded on this with his theory of general relativity.
+
+User: what language do people speak in france?
+Assistant: people in france primarily speak french. it is also the official language of about 29 other countries around the world.
+
+User: how many planets are in our solar system?
+Assistant: there are eight planets in our solar system: mercury, venus, earth, mars, jupiter, saturn, uranus, and neptune. pluto was reclassified as a dwarf planet in 2006.
+
+User: what is the biggest planet?
+Assistant: jupiter is the biggest planet in our solar system. it is so large that all other planets could fit inside it. it is a gas giant made mostly of hydrogen and helium.`;
+
+class Tokenizer {
+  constructor(source) {
+    this.specials = ['<pad>','<unk>','<bos>','<eos>','<user>','<assistant>'];
+    this._init(source);
+  }
+
+  static _tokenizeText(text) {
+    return (text.toLowerCase().match(/<pad>|<unk>|<bos>|<eos>|<user>|<assistant>|[a-z0-9]+(?:'[a-z0-9]+)?|[^\sA-Za-z0-9]/g) || []);
+  }
+
+  _init(source) {
+    if (Array.isArray(source)) {
+      const seen = new Set();
+      const tokens = [];
+      for (const t of [...this.specials, ...source]) {
+        if (!seen.has(t)) { seen.add(t); tokens.push(t); }
+      }
+      this.i2t = tokens;
+      this.t2i = Object.fromEntries(tokens.map((t,i)=>[t,i]));
+    } else {
+      const toks = Tokenizer._tokenizeText(source || '');
+      const seen = new Set();
+      const tokens = [];
+      for (const t of [...this.specials, ...toks]) {
+        if (!seen.has(t)) { seen.add(t); tokens.push(t); }
+      }
+      this.i2t = tokens;
+      this.t2i = Object.fromEntries(tokens.map((t,i)=>[t,i]));
+    }
+    this.size = this.i2t.length;
+    this.PAD = this.t2i['<pad>'];
+    this.UNK = this.t2i['<unk>'];
+    this.BOS = this.t2i['<bos>'];
+    this.EOS = this.t2i['<eos>'];
+    this.USER = this.t2i['<user>'];
+    this.ASSISTANT = this.t2i['<assistant>'];
+  }
+
+  static fromSerialized(obj) {
+    return new Tokenizer(obj?.tokens || []);
+  }
+
+  serialize() {
+    return { tokens: [...this.i2t] };
+  }
+
+  encode(text) {
+    return Tokenizer._tokenizeText(text).map(t => this.t2i[t] ?? this.UNK);
+  }
+
+  decode(ids) {
+    const raw = ids.map(id => this.i2t[id] ?? '<unk>').join(' ');
+    return raw
+      .replace(/<pad>|<bos>|<eos>|<user>|<assistant>/g, ' ')
+      .replace(/\s+([.,!?;:])/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+}
+
+function countPairs(text) {
+  return (text.match(/User\s*:/gi) || []).length;
+}
+
+function buildQAPool(qaText, tokenizer, seqLen) {
+  const pool = [];
+  if (!qaText.trim()) return pool;
+  const pairs = qaText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+
+  for (const pair of pairs) {
+    const userMatch = pair.match(/User\s*:\s*([\s\S]*?)(?=Assistant\s*:)/i);
+    const asstMatch = pair.match(/Assistant\s*:\s*([\s\S]*?)$/i);
+    if (!userMatch || !asstMatch) continue;
+
+    const user = userMatch[1].trim();
+    const answer = asstMatch[1].trim();
+    if (!user || !answer) continue;
+
+    const prefix = tokenizer.encode(`<user> ${user} <assistant>`);
+    const answerToks = tokenizer.encode(answer);
+
+    let tokens = [...prefix, ...answerToks, tokenizer.EOS];
+    let mask = [...new Array(prefix.length).fill(0), ...new Array(answerToks.length).fill(1), 0];
+
+    if (tokens.length < 2) continue;
+
+    if (tokens.length > seqLen + 1) {
+      const drop = tokens.length - (seqLen + 1);
+      tokens = tokens.slice(drop);
+      mask = mask.slice(drop);
+    }
+
+    pool.push({ tokens, mask });
+  }
+
+  return pool;
+}
+
+class MiniGPT {
+  constructor(cfg) {
+    this.cfg = { ...cfg, dropout: cfg.dropout || 0 };
+    this.vars = [];
+    this._mask = null;
+    this._build();
+  }
+
+  _v(t, name) {
+    const v = tf.variable(t, true, name);
+    this.vars.push(v);
+    return v;
+  }
+
+  _randInit(shape) {
+    return tf.randomNormal(shape, 0, 0.02, 'float32');
+  }
+
+  _scaledInit(shape) {
+    const std = 0.02 / Math.sqrt(Math.max(1, 2 * this.cfg.numLayers));
+    return tf.randomNormal(shape, 0, std, 'float32');
+  }
+
+  _build() {
+    const { vocabSize: V, dModel: D, numLayers: L, ffDim: F, seqLen: S } = this.cfg;
+
+    this.tok = this._v(this._randInit([V, D]), 'tok');
+    this.pos = this._v(this._randInit([S, D]), 'pos');
+
+    this.layers = [];
+    for (let i = 0; i < L; i++) {
+      this.layers.push({
+        ln1g: this._v(tf.ones([D]), `${i}_ln1g`),
+        ln1b: this._v(tf.zeros([D]), `${i}_ln1b`),
+        wq: this._v(this._randInit([D, D]), `${i}_wq`),
+        wk: this._v(this._randInit([D, D]), `${i}_wk`),
+        wv: this._v(this._randInit([D, D]), `${i}_wv`),
+        wo: this._v(this._scaledInit([D, D]), `${i}_wo`),
+        bq: this._v(tf.zeros([D]), `${i}_bq`),
+        bk: this._v(tf.zeros([D]), `${i}_bk`),
+        bv: this._v(tf.zeros([D]), `${i}_bv`),
+        ln2g: this._v(tf.ones([D]), `${i}_ln2g`),
+        ln2b: this._v(tf.zeros([D]), `${i}_ln2b`),
+        w1: this._v(this._randInit([D, F]), `${i}_w1`),
+        b1: this._v(tf.zeros([F]), `${i}_b1`),
+        w2: this._v(this._scaledInit([F, D]), `${i}_w2`),
+        b2: this._v(tf.zeros([D]), `${i}_b2`),
+      });
+    }
+
+    this.lnfg = this._v(tf.ones([D]), 'lnfg');
+    this.lnfb = this._v(tf.zeros([D]), 'lnfb');
+
+    const mask = [];
+    for (let i = 0; i < S; i++) {
+      for (let j = 0; j < S; j++) mask.push(j <= i ? 0 : -1e9);
+    }
+    this._mask = tf.tensor2d(mask, [S, S], 'float32');
+  }
+
+  dispose() {
+    this.vars.forEach(v => v.dispose());
+    if (this._mask) this._mask.dispose();
+    this.vars = [];
+    this._mask = null;
+  }
+
+  countParams() {
+    return this.vars.reduce((s, v) => s + v.size, 0);
+  }
+
+  _ln(x, g, b) {
+    return tf.tidy(() => {
+      const mean = x.mean(-1, true);
+      const variance = x.sub(mean).square().mean(-1, true);
+      const norm = x.sub(mean).div(variance.add(1e-5).sqrt());
+      return norm.mul(g).add(b);
+    });
+  }
+
+  _silu(x) {
+    return x.mul(tf.sigmoid(x));
+  }
+
+  _attn(x, layer, training) {
+    return tf.tidy(() => {
+      const { dModel: D, numHeads: H } = this.cfg;
+      const dH = D / H;
+      const [B, T] = [x.shape[0], x.shape[1]];
+
+      const flat = x.reshape([-1, D]);
+      const proj = (w, b) => flat.matMul(w).add(b).reshape([B, T, H, dH]).transpose([0, 2, 1, 3]);
+
+      const Q = proj(layer.wq, layer.bq);
+      const K = proj(layer.wk, layer.bk);
+      const V = proj(layer.wv, layer.bv);
+
+      let scores = Q.matMul(K.transpose([0,1,3,2])).div(Math.sqrt(dH));
+      scores = scores.add(this._mask.slice([0,0], [T, T]).reshape([1,1,T,T]));
+
+      let attn = tf.softmax(scores, -1).matMul(V).transpose([0,2,1,3]).reshape([B, T, D]);
+      attn = attn.reshape([-1, D]).matMul(layer.wo).reshape([B, T, D]);
+      if (training && this.cfg.dropout > 0) attn = tf.dropout(attn, this.cfg.dropout);
+      return attn;
+    });
+  }
+
+  _ffn(x, layer, training) {
+    return tf.tidy(() => {
+      const [B, T, D] = x.shape;
+      let out = this._silu(x.reshape([-1, D]).matMul(layer.w1).add(layer.b1))
+        .matMul(layer.w2).add(layer.b2)
+        .reshape([B, T, D]);
+      if (training && this.cfg.dropout > 0) out = tf.dropout(out, this.cfg.dropout);
+      return out;
+    });
+  }
+
+  forward(ids, training=false) {
+    return tf.tidy(() => {
+      const { dModel: D, vocabSize: V } = this.cfg;
+      const [B, T] = [ids.shape[0], ids.shape[1]];
+
+      let x = tf.gather(this.tok, ids.flatten()).reshape([B, T, D])
+        .add(this.pos.slice([0,0], [T, D]).reshape([1, T, D]));
+
+      if (training && this.cfg.dropout > 0) x = tf.dropout(x, this.cfg.dropout);
+
+      for (const layer of this.layers) {
+        x = x.add(this._attn(this._ln(x, layer.ln1g, layer.ln1b), layer, training));
+        x = x.add(this._ffn(this._ln(x, layer.ln2g, layer.ln2b), layer, training));
+      }
+
+      x = this._ln(x, this.lnfg, this.lnfb);
+      return x.reshape([-1, D]).matMul(this.tok, false, true).reshape([B, T, V]);
+    });
+  }
+}
+
+class Trainer {
+  constructor(model, tokenizer, pool, hp) {
+    this.model = model;
+    this.tok = tokenizer;
+    this.pool = pool;
+    this.hp = hp;
+    this.opt = tf.train.adam(hp.lr, 0.9, 0.95, 1e-8);
+    this.step = 0;
+    this.losses = [];
+    this.lrHistory = [];
+    this.running = false;
+    this.tStart = null;
+    this.tokSeen = 0;
+    this.lastGradNorm = 0;
+    this.lossEma = null;
+    this.nanCount = 0;
+    this._accumGrads = null;
+    this._accumCount = 0;
+    this._lastBatchToks = null;
+  }
+
+  _getLR() {
+    const { lr, warmupSteps, maxSteps, lrMode } = this.hp;
+    const minLr = lr * 0.1;
+    const s = this.step;
+
+    if (warmupSteps > 0 && s < warmupSteps) {
+      return lr * ((s + 1) / warmupSteps);
+    }
+
+    if (lrMode !== 'cosine') return lr;
+
+    const ms = Math.max(maxSteps || 10000, warmupSteps + 1);
+    if (s >= ms) return minLr;
+    const p = (s - warmupSteps) / (ms - warmupSteps);
+    return minLr + (lr - minLr) * 0.5 * (1 + Math.cos(Math.PI * p));
+  }
+
+  _sampleExample() {
+    return this.pool[Math.floor(Math.random() * this.pool.length)];
+  }
+
+  _getBatch() {
+    const { batchSize: B, seqLen: T } = this.hp;
+    const pad = this.tok.PAD;
+
+    const inpData = [];
+    const tgtData = [];
+    const maskData = [];
+
+    for (let b = 0; b < B; b++) {
+      const ex = this._sampleExample();
+      const seq = ex.tokens;
+      const mask = ex.mask;
+
+      const needed = T + 1;
+      let tokens = seq;
+      let m = mask;
+
+      if (tokens.length > needed) {
+        const drop = tokens.length - needed;
+        tokens = tokens.slice(drop);
+        m = m.slice(drop);
+      }
+
+      const inp = tokens.slice(0, -1);
+      const tgt = tokens.slice(1);
+      const tmask = m.slice(1);
+
+      while (inp.length < T) {
+        inp.push(pad);
+        tgt.push(pad);
+        tmask.push(0);
+      }
+
+      inpData.push(inp);
+      tgtData.push(tgt);
+      maskData.push(tmask);
+    }
+
+    this._lastBatchToks = inpData[0].filter(x => x !== pad);
+    return {
+      inp: tf.tensor2d(inpData, [B, T], 'int32'),
+      tgt: tf.tensor2d(tgtData, [B, T], 'int32'),
+      mask: tf.tensor2d(maskData, [B, T], 'float32')
+    };
+  }
+
+  _computeLoss(inp, tgt, mask) {
+    const V = this.model.cfg.vocabSize;
+    return tf.tidy(() => {
+      const logits = this.model.forward(inp, true);
+      const flatLogits = logits.reshape([-1, V]);
+      const flatTgt = tgt.reshape([-1]);
+      const flatMask = mask.reshape([-1]);
+
+      const oh = tf.oneHot(flatTgt, V).toFloat();
+      const tokenLoss = tf.neg(tf.sum(oh.mul(tf.logSoftmax(flatLogits, -1)), -1));
+      const masked = tokenLoss.mul(flatMask);
+      return masked.sum().div(flatMask.sum().add(1e-8));
+    });
+  }
+
+  _accumulate(grads, accumSteps) {
+    if (!this._accumGrads) {
+      this._accumGrads = {};
+      for (const [k, g] of Object.entries(grads)) {
+        this._accumGrads[k] = tf.tidy(() => g.div(accumSteps));
+        g.dispose();
+      }
+    } else {
+      for (const [k, g] of Object.entries(grads)) {
+        const sum = tf.tidy(() => this._accumGrads[k].add(g.div(accumSteps)));
+        this._accumGrads[k].dispose();
+        g.dispose();
+        this._accumGrads[k] = sum;
+      }
+    }
+    this._accumCount++;
+    if (this._accumCount >= accumSteps) {
+      const final = this._accumGrads;
+      this._accumGrads = null;
+      this._accumCount = 0;
+      return final;
+    }
+    return null;
+  }
+
+  _clipGrads(grads) {
+    const vals = Object.values(grads);
+    const sq = vals.map(g => tf.tidy(() => g.square().sum()));
+    const norm = tf.sqrt(tf.addN(sq));
+    sq.forEach(s => s.dispose());
+    const n = norm.dataSync()[0];
+    norm.dispose();
+
+    const maxNorm = 1.0;
+    const clipped = {};
+    const needClip = isFinite(n) && !isNaN(n) && n > maxNorm;
+
+    for (const [k, g] of Object.entries(grads)) {
+      clipped[k] = needClip ? tf.tidy(() => g.mul(maxNorm / n)) : g;
+      if (needClip) g.dispose();
+    }
+
+    return { clipped, normVal: n };
+  }
+
+  _applyWeightDecay(lr) {
+    const wd = this.hp.weightDecay || 0.01;
+    if (wd <= 0) return;
+    for (const v of this.model.vars) {
+      if (!this._shouldDecay(v.name)) continue;
+      const d = tf.tidy(() => v.mul(1 - lr * wd));
+      v.assign(d);
+      d.dispose();
+    }
+  }
+
+  _shouldDecay(name) {
+    return !name.endsWith('b') && !name.endsWith('g') && name !== 'tok' && name !== 'pos';
+  }
+
+  trainStep() {
+    const { batchSize: B, seqLen: T, accumSteps } = this.hp;
+    const lr = this._getLR();
+    this.opt.learningRate = lr;
+
+    const { inp, tgt, mask } = this._getBatch();
+
+    const { value: lossTensor, grads } = tf.variableGrads(() => this._computeLoss(inp, tgt, mask));
+    const loss = lossTensor.dataSync()[0];
+    lossTensor.dispose();
+
+    inp.dispose();
+    tgt.dispose();
+    mask.dispose();
+
+    if (!isFinite(loss) || isNaN(loss)) {
+      this.nanCount++;
+      Object.values(grads).forEach(g => g.dispose());
+      if (this._accumGrads) {
+        Object.values(this._accumGrads).forEach(g => g.dispose());
+        this._accumGrads = null;
+        this._accumCount = 0;
+      }
+      if (this.nanCount > 3) {
+        this.running = false;
+        log('⛔ Too many NaNs — lower learning rate', 'err');
+      }
+      return { loss: NaN, lr, gradNorm: 0 };
+    }
+
+    this.nanCount = Math.max(0, this.nanCount - 1);
+    const ready = this._accumulate(grads, accumSteps);
+
+    if (ready) {
+      const { clipped, normVal } = this._clipGrads(ready);
+      this.lastGradNorm = normVal;
+      this.opt.applyGradients(clipped);
+      Object.values(clipped).forEach(g => g.dispose());
+      this._applyWeightDecay(lr);
+
+      this.step++;
+      this.tokSeen += B * T * accumSteps;
+
+      this.lossEma = this.lossEma == null ? loss : (this.lossEma * 0.95 + loss * 0.05);
+      this.losses.push(this.lossEma);
+      this.lrHistory.push(lr * 100);
+      if (this.losses.length > 600) {
+        this.losses.shift();
+        this.lrHistory.shift();
+      }
+
+      if (this.step % 50 === 0) {
+        clog.training(this.step, this.lossEma, normVal, lr, this._lastBatchToks, this.tok);
+      }
+    } else {
+      Object.values(grads).forEach(g => g.dispose());
+    }
+
+    return { loss: this.lossEma ?? loss, lr, gradNorm: this.lastGradNorm };
+  }
+
+  async runLoop(onStep) {
+    this.running = true;
+    this.tStart = this.tStart || Date.now();
+    while (this.running) {
+      const res = this.trainStep();
+      onStep(res);
+      await tf.nextFrame();
+    }
+  }
+
+  stop() {
+    this.running = false;
+  }
+
+  tps() {
+    if (!this.tStart) return 0;
+    return Math.round(this.tokSeen / ((Date.now() - this.tStart) / 1000));
+  }
+
+  dispose() {
+    if (this._accumGrads) {
+      Object.values(this._accumGrads).forEach(g => g.dispose());
+      this._accumGrads = null;
+    }
+  }
+}
+
+function sampleFromLogits(logits, temperature=0.8, topK=20) {
+  const scaled = logits.map(x => x / Math.max(temperature, 1e-4));
+  const pairs = scaled.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]);
+  const cut = pairs.slice(0, Math.max(1, Math.min(topK, pairs.length)));
+  const max = cut[0][0];
+  const probs = cut.map(([v]) => Math.exp(v - max));
+  const sum = probs.reduce((a, b) => a + b, 0);
+  let r = Math.random();
+  let acc = 0;
+  for (let i = 0; i < cut.length; i++) {
+    acc += probs[i] / sum;
+    if (r <= acc) return cut[i][1];
+  }
+  return cut[0][1];
+}
+
+function applyRepetitionPenalty(logits, recentIds, penalty) {
+  if (penalty <= 1) return logits;
+  const out = logits.slice();
+  for (const id of recentIds) {
+    if (id < 0 || id >= out.length) continue;
+    out[id] = out[id] >= 0 ? out[id] / penalty : out[id] * penalty;
+  }
+  return out;
+}
+
+async function generate(model, tokenizer, promptIds, maxTok, temp, repPenalty, onToken) {
+  const ids = [...promptIds];
+  const outIds = [];
+  const S = model.cfg.seqLen;
+
+  for (let i = 0; i < maxTok; i++) {
+    const ctx = ids.slice(-S);
+    const inp = tf.tensor2d([ctx], [1, ctx.length], 'int32');
+
+    const logitsAll = model.forward(inp, false);
+    inp.dispose();
+
+    const last = logitsAll.slice([0, ctx.length - 1, 0], [1, 1, -1]).reshape([-1]);
+    logitsAll.dispose();
+
+    let logitsArr = Array.from(last.dataSync());
+    last.dispose();
+
+    logitsArr = applyRepetitionPenalty(logitsArr, ids.slice(-64), repPenalty);
+    const next = sampleFromLogits(logitsArr, temp, 20);
+
+    if (next === tokenizer.EOS || next === tokenizer.USER || next === tokenizer.ASSISTANT) break;
+
+    ids.push(next);
+    outIds.push(next);
+    if (onToken) onToken(next);
+
+    if (i % 16 === 0) await tf.nextFrame();
+  }
+
+  return { fullIds: ids, genIds: outIds };
+}
+
+let model = null;
+let trainer = null;
+let tokenizer = null;
+let lossChart = null;
+let qaPool = [];
+let lrMode = 'flat';
+
+const PRESETS = {
+  micro:{layers:2,dModel:128,heads:4,ffdim:512,seqLen:128,dropout:0.0},
+  small:{layers:6,dModel:256,heads:8,ffdim:1024,seqLen:128,dropout:0.1},
+  medium:{layers:8,dModel:384,heads:8,ffdim:1536,seqLen:192,dropout:0.1},
+  '30m':{layers:9,dModel:512,heads:8,ffdim:2048,seqLen:256,dropout:0.1},
+  xl:{layers:12,dModel:512,heads:8,ffdim:2048,seqLen:384,dropout:0.1},
+};
+
+function getConfig() {
+  return {
+    numLayers:+$('cfg-layers').value,
+    dModel:+$('cfg-dmodel').value,
+    numHeads:+$('cfg-heads').value,
+    ffDim:+$('cfg-ffdim').value,
+    seqLen:+$('cfg-seqlen').value,
+    dropout:+$('cfg-dropout').value
+  };
+}
+
+function getHP() {
+  return {
+    lr: Math.pow(10, +$('ctrl-lr').value),
+    batchSize: +$('ctrl-bs').value,
+    warmupSteps: +$('ctrl-warmup').value,
+    maxSteps: +$('ctrl-maxsteps').value,
+    seqLen: +$('cfg-seqlen').value,
+    accumSteps: +$('ctrl-accum').value,
+    lrMode,
+    weightDecay: 0.01
+  };
+}
+
+function updateMemStats() {
+  try {
+    const m = tf.memory();
+    $('mem-tensors').textContent = m.numTensors;
+    $('mem-bytes').textContent = fmtBytes(m.numBytes);
+    $('stat-tensors').textContent = m.numTensors;
+    const tv = $('mem-tensors');
+    tv.className = 'mem-stat-val' + (m.numTensors > 2000 ? ' danger' : m.numTensors > 1000 ? ' warn' : '');
+  } catch (e) {}
+}
+
+function initChart() {
+  if (lossChart) lossChart.destroy();
+  const ctx = $('lossChart').getContext('2d');
+  lossChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label:'Loss',
+          data:[],
+          borderColor:'#00ff88',
+          backgroundColor:'rgba(0,255,136,.04)',
+          borderWidth:1.5,
+          pointRadius:0,
+          tension:0.4,
+          fill:true,
+          yAxisID:'y'
+        },
+        {
+          label:'LR×100',
+          data:[],
+          borderColor:'rgba(255,170,0,0.6)',
+          backgroundColor:'transparent',
+          borderWidth:1,
+          pointRadius:0,
+          tension:0.4,
+          yAxisID:'y2'
+        }
+      ]
+    },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:false,
+      plugins:{legend:{display:false}, tooltip:{enabled:false}},
+      scales:{
+        x:{display:false},
+        y:{grid:{color:'rgba(255,255,255,.03)'}, ticks:{color:'#4a6080', font:{family:'IBM Plex Mono', size:9}}},
+        y2:{position:'right', grid:{display:false}, ticks:{color:'rgba(255,170,0,0.4)', font:{family:'IBM Plex Mono', size:9}}}
+      }
+    }
+  });
+}
+
+function updateChart(losses, lrHistory) {
+  if (!lossChart) return;
+  lossChart.data.labels = Array.from({length:losses.length}, (_, i) => i);
+  lossChart.data.datasets[0].data = [...losses];
+  lossChart.data.datasets[1].data = [...lrHistory];
+  lossChart.update('none');
+}
+
+function updateGradNorm(normVal) {
+  const capped = Math.min(normVal, 5);
+  const fill = $('gnorm-fill');
+  fill.style.width = (capped / 5 * 100) + '%';
+  fill.className = 'gnorm-fill' + (normVal > 1.0 ? ' clipped' : '');
+  $('gnorm-val').textContent = isFinite(normVal) ? normVal.toFixed(3) : '—';
+  $('gnorm-val').style.color = normVal > 1.0 ? 'var(--accent3)' : 'var(--accent2)';
+  $('stat-gnorm').textContent = isFinite(normVal) ? normVal.toFixed(2) : '—';
+}
+
+function buildModel() {
+  const qText = $('ta-qa').value.trim();
+  if (!qText) { log('Add some Q&A pairs first!', 'warn'); return; }
+
+  if (model) { model.dispose(); model = null; }
+  if (trainer) { trainer.stop(); trainer.dispose(); trainer = null; }
+
+  log('Building tokenizer…', 'info');
+
+  try {
+    tokenizer = new Tokenizer(qText);
+    const cfg = getConfig();
+    cfg.vocabSize = tokenizer.size;
+
+    if (cfg.dModel % cfg.numHeads !== 0) {
+      log('d_model must be divisible by heads!', 'err');
+      return;
+    }
+
+    qaPool = buildQAPool(qText, tokenizer, cfg.seqLen);
+    if (!qaPool.length) {
+      log('No valid Q&A pairs found — check format', 'warn');
+      return;
+    }
+
+    model = new MiniGPT(cfg);
+    const np = model.countParams();
+
+    $('stat-params').textContent = fmtN(np);
+    $('btn-send').disabled = false;
+
+    log(`💬 ${qaPool.length} pairs | vocab ${tokenizer.size}`, 'ok');
+    log(`✓ ${cfg.numLayers}L d${cfg.dModel} h${cfg.numHeads} | ${fmtN(np)} params | dropout=${cfg.dropout}`, 'ok');
+
+    $('arch-info').innerHTML = [
+      `<div>Layers: <b style="color:var(--accent)">${cfg.numLayers}</b></div>`,
+      `<div>d_model: <b style="color:var(--accent)">${cfg.dModel}</b></div>`,
+      `<div>Heads: <b style="color:var(--accent)">${cfg.numHeads}</b></div>`,
+      `<div>FF dim: <b style="color:var(--accent)">${cfg.ffDim}</b></div>`,
+      `<div>Seq: <b style="color:var(--accent)">${cfg.seqLen}</b></div>`,
+      `<div>Vocab: <b style="color:var(--accent)">${cfg.vocabSize}</b></div>`,
+      `<div>Dropout: <b style="color:var(--accent2)">${cfg.dropout}</b></div>`,
+      `<div>Pairs: <b style="color:var(--accent2)">${qaPool.length}</b></div>`,
+      `<div>Params: <b style="color:var(--accent2)">${fmtN(np)}</b></div>`,
+      `<div>~Size: <b style="color:var(--accent2)">${(np*4/1e6).toFixed(1)}MB</b></div>`,
+    ].join('');
+
+    initChart();
+    updateMemStats();
+  } catch (e) {
+    log('Build error: ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+function ensureTrainer() {
+  if (!model) { log('Build a model first!', 'warn'); return false; }
+  if (!trainer) trainer = new Trainer(model, tokenizer, qaPool, getHP());
+  return true;
+}
+
+function syncTrainerHP() {
+  if (!trainer) return;
+  trainer.hp = getHP();
+  trainer.hp.lrMode = lrMode;
+}
+
+function startTraining() {
+  if (!model) { log('Build a model first!', 'warn'); return; }
+  if (trainer && trainer.running) { trainer.stop(); return; }
+  if (!ensureTrainer()) return;
+
+  syncTrainerHP();
+  log(`Training | lr=${getHP().lr.toExponential(1)} | accum=×${trainer.hp.accumSteps} | wd=0.01 | drop=${model.cfg.dropout}`, 'ok');
+  $('btn-train').textContent = '⏹ STOP';
+  $('btn-train').classList.add('running');
+
+  let lastUI = 0;
+  trainer.runLoop(({loss, lr, gradNorm}) => {
+    const s = trainer.step;
+    const now = Date.now();
+
+    if (now - lastUI > 120) {
+      lastUI = now;
+      $('stat-step').textContent = s;
+      if (trainer.losses.length) $('stat-loss').textContent = trainer.losses[trainer.losses.length - 1].toFixed(4);
+      $('stat-tps').textContent = fmtN(trainer.tps());
+      $('mem-lr').textContent = lr.toExponential(1);
+      updateChart(trainer.losses, trainer.lrHistory);
+      updateGradNorm(gradNorm);
+      updateMemStats();
+      const hp = getHP();
+      $('train-progress-bar').style.width = lrMode === 'cosine'
+        ? Math.min(s / hp.maxSteps * 100, 99) + '%'
+        : Math.min(s / (s + 500) * 100, 99) + '%';
+    }
+
+    if (s > 0 && s % 100 === 0 && trainer.losses.length) {
+      log(`Step ${s} | loss ${trainer.losses[trainer.losses.length - 1].toFixed(4)} | gnorm ${gradNorm.toFixed(3)} | ${fmtN(trainer.tps())} tok/s`, 'info');
+    }
+  }).then(() => {
+    $('btn-train').textContent = '▶ TRAIN';
+    $('btn-train').classList.remove('running');
+    log('Training paused.', 'warn');
+  });
+}
+
+async function doSteps(n) {
+  if (!ensureTrainer()) return;
+  syncTrainerHP();
+  for (let i = 0; i < n; i++) {
+    const {gradNorm} = trainer.trainStep();
+    $('stat-step').textContent = trainer.step;
+    if (trainer.losses.length) $('stat-loss').textContent = trainer.losses[trainer.losses.length - 1].toFixed(4);
+    updateChart(trainer.losses, trainer.lrHistory);
+    updateGradNorm(gradNorm);
+    if (i % 10 === 0) {
+      updateMemStats();
+      await tf.nextFrame();
+    }
+  }
+  updateMemStats();
+  if (trainer.losses.length) log(`${n} step${n>1?'s':''} | loss ${trainer.losses[trainer.losses.length - 1].toFixed(4)} | gnorm ${trainer.lastGradNorm.toFixed(3)}`, 'ok');
+}
+
+function addMsg(role, text, stream=false) {
+  $('chat-empty')?.remove();
+  const wrap = $('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}${stream ? ' streaming' : ''}`;
+  div.innerHTML = `<div class="msg-lbl">${role === 'user' ? 'you' : 'beanai'}</div><span class="content"></span>${stream ? '<span class="cursor"></span>' : ''}`;
+  div.querySelector('.content').textContent = text;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div;
+}
+
+async function sendChat() {
+  if (!model) { log('Build and train a model first!', 'warn'); return; }
+  const input = $('chat-input').value.trim();
+  if (!input) return;
+
+  $('chat-input').value = '';
+  $('btn-send').disabled = true;
+  $('chat-input').style.height = '32px';
+
+  addMsg('user', input);
+
+  const promptIds = tokenizer.encode(`<user> ${input} <assistant>`);
+  const msgDiv = addMsg('asst', '', true);
+  const contentEl = msgDiv.querySelector('.content');
+  const cursorEl = msgDiv.querySelector('.cursor');
+
+  const temp = +$('gen-temp').value;
+  const maxTok = +$('gen-len').value;
+  const repPenalty = +$('gen-repen').value;
+
+  let collected = [];
+  let genIds = [];
+
+  try {
+    await generate(model, tokenizer, promptIds, maxTok, temp, repPenalty, (id) => {
+      collected.push(id);
+      genIds.push(id);
+      contentEl.textContent = tokenizer.decode(collected);
+      msgDiv.scrollIntoView({block:'end'});
+    });
+  } catch (e) {
+    contentEl.textContent = '[error: ' + e.message + ']';
+  }
+
+  clog.inference(promptIds, genIds, tokenizer);
+  cursorEl?.remove();
+  msgDiv.classList.remove('streaming');
+  $('btn-send').disabled = false;
+  updateMemStats();
+}
+
+async function rawGen() {
+  if (!model) { log('Train a model first!', 'warn'); return; }
+  const seed = $('chat-input').value.trim() || 'hello';
+  const ids = tokenizer.encode(`<user> ${seed} <assistant>`);
+
+  if ($('chat-input').value.trim()) addMsg('user', '[raw] ' + seed);
+
+  const msgDiv = addMsg('asst', '', true);
+  const contentEl = msgDiv.querySelector('.content');
+  let collected = [];
+  let genIds = [];
+
+  try {
+    await generate(model, tokenizer, ids, +$('gen-len').value, +$('gen-temp').value, +$('gen-repen').value, (id) => {
+      collected.push(id);
+      genIds.push(id);
+      contentEl.textContent = tokenizer.decode(collected);
+      msgDiv.scrollIntoView({block:'end'});
+    });
+  } catch (e) {
+    contentEl.textContent = '[error: ' + e.message + ']';
+  }
+
+  clog.inference(ids, genIds, tokenizer);
+  msgDiv.querySelector('.cursor')?.remove();
+  msgDiv.classList.remove('streaming');
+  $('chat-input').value = '';
+  updateMemStats();
+}
+
+// ─── BINARY SAVE ────────────────────────────────────────────────────────────
+// File layout:
+//   [4 bytes LE uint32] — byte length of JSON header
+//   [N bytes UTF-8]     — JSON: { version, config, tokenizer, step, weights[] }
+//                          weights[] = [{ name, shape, offset, length }, ...]
+//                          where offset/length are in float32 units
+//   [M × 4 bytes]       — packed float32 weight data (all vars concatenated)
+// ────────────────────────────────────────────────────────────────────────────
+async function saveWeights() {
+  if (!model) { log('No model!', 'warn'); return; }
+
+  const weightMeta = [];
+  const arrays = [];
+  let totalFloats = 0;
+
+  for (const v of model.vars) {
+    const data = v.dataSync();
+    weightMeta.push({ name: v.name, shape: v.shape, offset: totalFloats, length: data.length });
+    arrays.push(new Float32Array(data));
+    totalFloats += data.length;
+  }
+
+  const header = {
+    version: 'simple-v3-bin', config: model.cfg,
+    tokenizer: tokenizer.serialize(),
+    step: trainer ? trainer.step : 0,
+    weights: weightMeta
+  };
+
+  const headerRaw = new TextEncoder().encode(JSON.stringify(header));
+  // Pad header to next multiple of 4 for Float32Array alignment
+  const headerPadded = Math.ceil(headerRaw.length / 4) * 4;
+
+  const buf = new ArrayBuffer(4 + headerPadded + totalFloats * 4);
+  new DataView(buf).setUint32(0, headerRaw.length, true);          // store REAL length
+  new Uint8Array(buf, 4, headerRaw.length).set(headerRaw);         // write header bytes
+  // bytes between headerRaw.length and headerPadded are already 0 (padding)
+
+  const floatView = new Float32Array(buf, 4 + headerPadded);       // aligned offset
+  let offset = 0;
+  for (const arr of arrays) { floatView.set(arr, offset); offset += arr.length; }
+
+  const blob = new Blob([buf], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `minigpt_s${header.step}.bin`; a.click();
+  URL.revokeObjectURL(url);
+
+  const fileMB = (buf.byteLength / 1e6).toFixed(1);
+  log(`Saved ${fmtN(model.countParams())} params → minigpt_s${header.step}.bin (${fileMB} MB)`, 'ok');
+}
+
+// ─── BINARY LOAD ─────────────────────────────────────────────────────────────
+function loadWeights(file) {
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const buf = e.target.result;
+      const headerLen = new DataView(buf).getUint32(0, true);        // REAL header length
+      const headerPadded = Math.ceil(headerLen / 4) * 4;             // padded size
+      const headerJson = new TextDecoder().decode(new Uint8Array(buf, 4, headerLen));
+      const data = JSON.parse(headerJson);
+
+      if (!data.config || !data.tokenizer || !data.tokenizer.tokens)
+        throw new Error('Invalid or corrupted .bin file');
+
+      if (model)   model.dispose();
+      if (trainer) { trainer.stop(); trainer.dispose(); trainer = null; }
+
+      tokenizer = Tokenizer.fromSerialized(data.tokenizer);
+      const cfg = data.config;
+      cfg.vocabSize = tokenizer.size;
+      model = new MiniGPT(cfg);
+
+      const floatData = new Float32Array(buf, 4 + headerPadded);     // aligned offset
+
+      let loaded = 0;
+      for (const v of model.vars) {
+        const meta = data.weights.find(w => w.name === v.name);
+        if (meta) {
+          v.assign(tf.tensor(floatData.subarray(meta.offset, meta.offset + meta.length), meta.shape));
+          loaded++;
+        }
+      }
+
+      $('stat-params').textContent = fmtN(model.countParams());
+      $('btn-send').disabled = false;
+      initChart();
+      log(`✓ Loaded ${loaded} tensors from step ${data.step} (${file.name})`, 'ok');
+      updateMemStats();
+    } catch (ex) {
+      log('Load error: ' + ex.message, 'err');
+      console.error(ex);
+    }
+  };
+  r.readAsArrayBuffer(file);
+}
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const p = PRESETS[btn.dataset.p];
+    if (!p) return;
+    $('cfg-layers').value = p.layers; $('val-layers').textContent = p.layers;
+    $('cfg-dmodel').value = p.dModel; $('val-dmodel').textContent = p.dModel;
+    $('cfg-heads').value = p.heads; $('val-heads').textContent = p.heads;
+    $('cfg-ffdim').value = p.ffdim; $('val-ffdim').textContent = p.ffdim;
+    $('cfg-seqlen').value = p.seqLen; $('val-seqlen').textContent = p.seqLen;
+    $('cfg-dropout').value = p.dropout; $('val-dropout').textContent = p.dropout.toFixed(2);
+  });
+});
+
+[['cfg-layers','val-layers'],['cfg-dmodel','val-dmodel'],['cfg-heads','val-heads'],['cfg-ffdim','val-ffdim'],['cfg-seqlen','val-seqlen']].forEach(([id,vid]) => {
+  $(id).addEventListener('input', () => { $(vid).textContent = $(id).value; });
+});
+
+$('cfg-dropout').addEventListener('input', () => { $('val-dropout').textContent = (+$('cfg-dropout').value).toFixed(2); });
+$('ctrl-lr').addEventListener('input', () => { $('val-lr').textContent = Math.pow(10, +$('ctrl-lr').value).toExponential(1); });
+$('ctrl-bs').addEventListener('input', () => { $('val-bs').textContent = $('ctrl-bs').value; });
+$('ctrl-warmup').addEventListener('input', () => { $('val-warmup').textContent = $('ctrl-warmup').value; });
+$('ctrl-maxsteps').addEventListener('input', () => { $('val-maxsteps').textContent = $('ctrl-maxsteps').value; });
+$('gen-temp').addEventListener('input', () => { $('val-temp').textContent = (+$('gen-temp').value).toFixed(2); });
+$('gen-len').addEventListener('input', () => { $('val-glen').textContent = $('gen-len').value; });
+$('gen-repen').addEventListener('input', () => { $('val-repen').textContent = (+$('gen-repen').value).toFixed(2); });
+
+$('lr-warmup').addEventListener('click', () => {
+  lrMode = 'flat';
+  $('lr-warmup').classList.add('active');
+  $('lr-cosine').classList.remove('active');
+  $('row-maxsteps').style.opacity = '0.3';
+});
+$('lr-cosine').addEventListener('click', () => {
+  lrMode = 'cosine';
+  $('lr-cosine').classList.add('active');
+  $('lr-warmup').classList.remove('active');
+  $('row-maxsteps').style.opacity = '1';
+});
+
+$('ta-qa').addEventListener('input', () => {
+  const t = $('ta-qa').value;
+  $('q-pairs').textContent = countPairs(t);
+  $('q-tokens').textContent = '~' + Math.round(t.length / 5).toLocaleString();
+  $('q-chars').textContent = t.length.toLocaleString();
+});
+
+$('btn-build').addEventListener('click', buildModel);
+$('btn-reset').addEventListener('click', () => {
+  if (trainer) { trainer.stop(); trainer.dispose(); trainer = null; }
+  if (model) { model.dispose(); model = null; }
+  tokenizer = null;
+  qaPool = [];
+  initChart();
+  $('stat-params').textContent = '0';
+  $('stat-step').textContent = '0';
+  $('stat-loss').textContent = '—';
+  $('stat-tps').textContent = '0';
+  $('stat-gnorm').textContent = '—';
+  $('arch-info').textContent = 'Build a model to see details';
+  $('btn-send').disabled = true;
+  $('gnorm-fill').style.width = '0%';
+  updateMemStats();
+  log('Reset.', 'warn');
+});
+
+$('btn-gc').addEventListener('click', () => {
+  const before = tf.memory().numTensors;
+  updateMemStats();
+  log(`GC: ${before} → ${tf.memory().numTensors} tensors`, 'info');
+});
+$('btn-train').addEventListener('click', startTraining);
+$('btn-step1').addEventListener('click', () => doSteps(1));
+$('btn-step10').addEventListener('click', () => doSteps(10));
+$('btn-step100').addEventListener('click', () => doSteps(100));
+$('btn-send').addEventListener('click', sendChat);
+$('btn-raw').addEventListener('click', rawGen);
+$('btn-clr-chat').addEventListener('click', () => {
+  $('chat-messages').innerHTML = '<div id="chat-empty" style="font-family:var(--font-mono);font-size:10px;color:var(--text2);text-align:center;margin:auto;opacity:.4">Chat cleared</div>';
+});
+$('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+$('btn-save').addEventListener('click', saveWeights);
+$('btn-load').addEventListener('change', e => { if (e.target.files[0]) loadWeights(e.target.files[0]); });
+$('btn-sample').addEventListener('click', () => {
+  $('ta-qa').value = SAMPLE_QA;
+  $('ta-qa').dispatchEvent(new Event('input'));
+  log('Sample data loaded.', 'ok');
+});
+$('btn-clear-data').addEventListener('click', () => {
+  $('ta-qa').value = '';
+  $('q-pairs').textContent = '0';
+  $('q-tokens').textContent = '0';
+  $('q-chars').textContent = '0';
+});
+
+(async () => {
+  const fill = $('init-fill');
+  const msg = $('init-msg');
+
+  fill.style.width = '20%';
+  msg.textContent = 'Loading TensorFlow.js…';
+  await tf.ready();
+  fill.style.width = '60%';
+
+  let backend = 'WebGL';
+  try {
+    if (navigator.gpu) {
+      msg.textContent = 'Trying WebGPU…';
+      await tf.setBackend('webgpu');
+      backend = 'WebGPU';
+    } else {
+      await tf.setBackend('webgl');
+      backend = 'WebGL';
+    }
+  } catch (e) {
+    await tf.setBackend('webgl');
+    backend = 'WebGL';
+  }
+
+  fill.style.width = '90%';
+  const badge = $('backend-badge');
+  badge.textContent = backend;
+  badge.className = backend === 'WebGPU' ? 'webgpu' : 'webgl';
+
+  msg.textContent = 'Ready!';
+  fill.style.width = '100%';
+  await new Promise(r => setTimeout(r, 300));
+
+  $('init-overlay').style.display = 'none';
+  $('header').style.display = 'flex';
+  $('main').style.display = 'grid';
+
+  initChart();
+  updateMemStats();
+  setInterval(updateMemStats, 2000);
+
+  log('BeanAI ready (v3-bin — binary save/load).', 'ok');
+  log(`Backend: ${backend} | TF.js ${tf.version.tfjs}`, 'info');
+})();
+</script>
+</body>
+</html>
