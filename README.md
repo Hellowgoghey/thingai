@@ -1,0 +1,2 @@
+# thingai
+personalai project
